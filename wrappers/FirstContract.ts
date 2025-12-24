@@ -75,4 +75,23 @@ export class FirstContract implements Contract {
         const result = await provider.get('currentCounter', []);
         return result.stack.readNumber();
     }
+
+    async getFullStorage(provider: ContractProvider) {
+        const state = await provider.getState();
+
+        if (!state || state.state.type !== 'active' || !state.state.data) {
+            throw new Error('No data');
+        }
+
+        // data — это Buffer, а не Cell
+        const cell = Cell.fromBoc(state.state.data)[0];
+
+        const slice = cell.beginParse();
+
+        console.log(slice);
+
+        return {
+            counter: slice.loadInt(64),
+        };
+    }
 }
