@@ -3,6 +3,7 @@
     "version": "0.0.1",
     "scripts": {
         "bp": "blueprint",
+        "format": "prettier . --write",
         "start": "blueprint run",
         "build": "blueprint build",
         "test": "jest --verbose",
