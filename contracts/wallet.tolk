@@ -32,11 +32,7 @@ get fun getPublicKey(): uint256 {
     return storage.pubkey;
 }
 
-fun onInternalMessage(in: InMessage) {
-    // var storage = lazy Storage.load();
-    // storage.seqno += 1;
-    // storage.save();
-}
+fun onInternalMessage(in: InMessage) {}
 
 fun onExternalMessage(inMsg: slice) {
     var storage = lazy Storage.load();
