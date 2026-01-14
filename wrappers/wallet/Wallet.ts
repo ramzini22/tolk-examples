@@ -15,32 +15,32 @@ export const contractCustomAddress = Address.parse(WALLET_ADDRESS);
 
 export type WalletConfig = {
     publicKey: Buffer;
-    subwallet_id?: number;
+    wallet_id?: number;
 };
 
 export function walletConfigToCell(config: WalletConfig): Cell {
     const pubkey = BigInt('0x' + config.publicKey.toString('hex'));
-    const subwallet_id = config.subwallet_id ?? 0;
-    return beginCell().storeUint(subwallet_id, 32).storeUint(0, 32).storeUint(pubkey, 256).endCell();
+    const wallet_id = config.wallet_id ?? 0;
+    return beginCell().storeUint(wallet_id, 32).storeUint(0, 32).storeUint(pubkey, 256).endCell();
 }
 
 export class WalletContract implements Contract {
     abi: ContractABI = { name: 'Wallet' };
 
-    static createFromAddress(address: Address, subwallet_id: number) {
-        return new WalletContract(address, subwallet_id);
+    static createFromAddress(address: Address, wallet_id: number) {
+        return new WalletContract(address, wallet_id);
     }
 
     constructor(
         readonly address: Address,
-        readonly subwallet_id?: number,
+        readonly wallet_id?: number,
         readonly init?: { code: Cell; data: Cell },
     ) {}
 
     static createFromConfig(config: WalletConfig, code: Cell, workchain = 0): WalletContract {
         const data = walletConfigToCell(config);
         const init = { code, data };
-        return new WalletContract(contractAddress(workchain, init), config.subwallet_id ?? 0, init);
+        return new WalletContract(contractAddress(workchain, init), config.wallet_id ?? 0, init);
     }
 
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {

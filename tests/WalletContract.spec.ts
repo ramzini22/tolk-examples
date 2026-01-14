@@ -20,10 +20,10 @@ describe('Wallet', () => {
     beforeEach(async () => {
         const words = ['1', '2', '3'];
         const { publicKey } = await mnemonicToPrivateKey(words);
-        const subwallet_id = Number(process.env.SUBWALLET_ID ?? 0);
+        const wallet_id = Number(process.env.WALLET_ID ?? 0);
         blockchain = await Blockchain.create();
 
-        wallet = blockchain.openContract(WalletContract.createFromConfig({ publicKey, subwallet_id }, code));
+        wallet = blockchain.openContract(WalletContract.createFromConfig({ publicKey, wallet_id }, code));
 
         deployer = await blockchain.treasury('deployer');
 

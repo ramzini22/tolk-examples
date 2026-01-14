@@ -2,7 +2,7 @@ import "@stdlib/gas-payments"
 import "@stdlib/common"
 
 struct Storage {
-    subwallet_id: uint32
+    wallet_id: uint32
     seqno: uint32
     pubkey: uint256
 }
@@ -50,7 +50,7 @@ fun onExternalMessage(inMsg: slice) {
 
     assert(msg.valid_until >= blockchain.now()) throw 36;
     assert(msg.seqno == storage.seqno) throw 33;
-    assert(msg.subwallet_id == storage.subwallet_id) throw 34;
+    assert(msg.subwallet_id == storage.wallet_id) throw 34;
 
     val isValid = isSignatureValid(payload.hash(), signature, storage.pubkey);
     assert(isValid) throw 35;

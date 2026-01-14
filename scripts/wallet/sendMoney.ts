@@ -7,9 +7,9 @@ import { mnemonicToPrivateKey, sign } from '@ton/crypto';
 export async function run(provider: NetworkProvider) {
     const words = ['1', '2', '3'];
     const { secretKey } = await mnemonicToPrivateKey(words);
-    const subwallet_id = Number(process.env.SUBWALLET_ID ?? 0);
+    const wallet_id = Number(process.env.WALLET_ID ?? 0);
 
-    const wallet = provider.open(new WalletContract(contractCustomAddress, subwallet_id));
+    const wallet = provider.open(new WalletContract(contractCustomAddress, wallet_id));
     const seqno = await wallet.getSeqno();
     const valid_until = Math.floor(Date.now() / 1000) + 60;
     const address = Address.parse('kQD9g_Wo1mw4np5h0POYXNxqAVGNACj29cJNTTvJguJQYSYk');
@@ -22,7 +22,7 @@ export async function run(provider: NetworkProvider) {
 
     const body = beginCell().storeUint(0x3a752f01, 32).storeAddress(address).storeCoins(amount).endCell();
     const payload = beginCell()
-        .storeUint(subwallet_id, 32)
+        .storeUint(wallet_id, 32)
         .storeUint(seqno, 32)
         .storeUint(valid_until, 32)
         .storeRef(body)
