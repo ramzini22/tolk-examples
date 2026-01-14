@@ -3,14 +3,14 @@ import { Cell, toNano } from '@ton/core';
 
 import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
-import { WalletContract } from '../wrappers/wallet/Wallet';
+import { WalletContract } from '../wrappers/Wallet';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 
 describe('Wallet', () => {
     let code: Cell;
 
     beforeAll(async () => {
-        code = await compile('wallet/Wallet');
+        code = await compile('Wallet');
     });
 
     let blockchain: Blockchain;

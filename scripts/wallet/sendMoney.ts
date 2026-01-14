@@ -1,7 +1,7 @@
 import { NetworkProvider } from '@ton/blueprint';
 import { TonClient } from '@ton/ton';
 import { Address, beginCell } from '@ton/core';
-import { contractCustomAddress, WalletContract } from '../../wrappers/wallet/Wallet';
+import { contractCustomAddress, WalletContract } from '../../wrappers/Wallet';
 import { mnemonicToPrivateKey, sign } from '@ton/crypto';
 
 export async function run(provider: NetworkProvider) {

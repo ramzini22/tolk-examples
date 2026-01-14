@@ -1,5 +1,5 @@
 import { compile, NetworkProvider } from '@ton/blueprint';
-import { WalletContract } from '../../wrappers/wallet/Wallet';
+import { WalletContract } from '../../wrappers/Wallet';
 import { toNano } from '@ton/core';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 
@@ -9,7 +9,7 @@ export async function run(provider: NetworkProvider) {
     const { publicKey } = await mnemonicToPrivateKey(words);
 
     const walletContract = provider.open(
-        WalletContract.createFromConfig({ publicKey, wallet_id }, await compile('wallet/Wallet')),
+        WalletContract.createFromConfig({ publicKey, wallet_id }, await compile('Wallet')),
     );
 
     await walletContract.sendDeploy(provider.sender(), toNano('0.05'));
