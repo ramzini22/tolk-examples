@@ -1,6 +1,6 @@
 import { NetworkProvider } from '@ton/blueprint';
 import { TonClient } from '@ton/ton';
-import { Address, beginCell, Contract } from '@ton/core';
+import { Address, beginCell } from '@ton/core';
 import { contractCustomAddress, WalletContract } from '../../wrappers/Wallet';
 import { mnemonicToPrivateKey, sign } from '@ton/crypto';
 
@@ -10,6 +10,7 @@ export async function run(provider: NetworkProvider) {
 
     const wallet = provider.open(new WalletContract(contractCustomAddress));
     const seqno = await wallet.getSeqno();
+    const valid_until = Math.floor(Date.now() / 1000) + 60;
     const address = Address.parse('kQD9g_Wo1mw4np5h0POYXNxqAVGNACj29cJNTTvJguJQYSYk');
     const amount = 10000000n; // 0.01 TON
 
@@ -23,6 +24,7 @@ export async function run(provider: NetworkProvider) {
     const payload = beginCell()
         .storeUint(0x3a752f01, 32)
         .storeUint(seqno, 32)
+        .storeUint(valid_until, 32)
         .storeAddress(address)
         .storeCoins(amount)
         .endCell();
@@ -32,6 +34,7 @@ export async function run(provider: NetworkProvider) {
     const msg = beginCell()
         .storeUint(0x3a752f01, 32)
         .storeUint(seqno, 32)
+        .storeUint(valid_until, 32)
         .storeAddress(address)
         .storeCoins(amount)
         .storeBuffer(signature)
