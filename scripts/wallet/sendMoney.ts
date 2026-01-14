@@ -16,8 +16,8 @@ export async function run(provider: NetworkProvider) {
     const amount = 10000000n; // 0.01 TON
 
     const client = new TonClient({
-        endpoint: 'https://testnet.toncenter.com/api/v2/jsonRPC',
-        apiKey: '6242c232523a7d109f8828e77dcc4b1a69154eccad82040a01336c2a3007e692',
+        endpoint: process.env.ENDPOINT ?? '',
+        apiKey: process.env.APIKEY ?? '',
     });
 
     const body = beginCell().storeUint(0x3a752f01, 32).storeAddress(address).storeCoins(amount).endCell();
