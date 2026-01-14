@@ -22,7 +22,6 @@ export async function run(provider: NetworkProvider) {
     const walletContract = provider.open(WalletContract.createFromAddress(contractCustomAddress));
 
     const payload = beginCell()
-        .storeUint(0x3a752f01, 32)
         .storeUint(seqno, 32)
         .storeUint(valid_until, 32)
         .storeAddress(address)
@@ -32,12 +31,11 @@ export async function run(provider: NetworkProvider) {
     const signature = sign(payload.hash(), secretKey);
 
     const msg = beginCell()
-        .storeUint(0x3a752f01, 32)
+        .storeBuffer(signature)
         .storeUint(seqno, 32)
         .storeUint(valid_until, 32)
         .storeAddress(address)
         .storeCoins(amount)
-        .storeBuffer(signature)
         .endCell();
 
     await client.sendExternalMessage(walletContract, msg);

@@ -15,11 +15,13 @@ export const contractCustomAddress = Address.parse(WALLET_ADDRESS);
 
 export type WalletConfig = {
     publicKey: Buffer;
+    subwallet_id?: number;
 };
 
 export function walletConfigToCell(config: WalletConfig): Cell {
     const pubkey = BigInt('0x' + config.publicKey.toString('hex'));
-    return beginCell().storeUint(0, 32).storeUint(pubkey, 256).endCell();
+    const subwallet_id = config.subwallet_id ?? 0;
+    return beginCell().storeUint(subwallet_id, 32).storeUint(0, 32).storeUint(pubkey, 256).endCell();
 }
 
 export class WalletContract implements Contract {
