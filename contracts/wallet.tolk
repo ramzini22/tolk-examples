@@ -47,7 +47,6 @@ fun onExternalMessage(inMsg: slice) {
     val msg = ExternalMessage.fromSlice(inMsg);
     var signature = inMsg.getFirstBits(512) as slice;
     val payload = inMsg.skipBits(512);
-    val body = msg.body.load();
 
     assert(msg.valid_until >= blockchain.now()) throw 36;
     assert(msg.seqno == storage.seqno) throw 33;
@@ -57,6 +56,8 @@ fun onExternalMessage(inMsg: slice) {
     assert(isValid) throw 35;
 
     acceptExternalMessage();
+
+    val body = msg.body.load();
 
     match (body) {
         Send => {
