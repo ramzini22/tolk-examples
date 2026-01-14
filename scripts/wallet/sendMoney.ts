@@ -7,8 +7,9 @@ import { mnemonicToPrivateKey, sign } from '@ton/crypto';
 export async function run(provider: NetworkProvider) {
     const words = ['1', '2', '3'];
     const { secretKey } = await mnemonicToPrivateKey(words);
+    const subwallet_id = Number(process.env.SUBWALLET_ID ?? 0);
 
-    const wallet = provider.open(new WalletContract(contractCustomAddress));
+    const wallet = provider.open(new WalletContract(contractCustomAddress, subwallet_id));
     const seqno = await wallet.getSeqno();
     const valid_until = Math.floor(Date.now() / 1000) + 60;
     const address = Address.parse('kQD9g_Wo1mw4np5h0POYXNxqAVGNACj29cJNTTvJguJQYSYk');
@@ -19,24 +20,16 @@ export async function run(provider: NetworkProvider) {
         apiKey: '6242c232523a7d109f8828e77dcc4b1a69154eccad82040a01336c2a3007e692',
     });
 
-    const walletContract = provider.open(WalletContract.createFromAddress(contractCustomAddress));
-
+    const body = beginCell().storeUint(0x3a752f01, 32).storeAddress(address).storeCoins(amount).endCell();
     const payload = beginCell()
+        .storeUint(subwallet_id, 32)
         .storeUint(seqno, 32)
         .storeUint(valid_until, 32)
-        .storeAddress(address)
-        .storeCoins(amount)
+        .storeRef(body)
         .endCell();
 
     const signature = sign(payload.hash(), secretKey);
+    const msg = beginCell().storeBuffer(signature).storeSlice(payload.beginParse()).endCell();
 
-    const msg = beginCell()
-        .storeBuffer(signature)
-        .storeUint(seqno, 32)
-        .storeUint(valid_until, 32)
-        .storeAddress(address)
-        .storeCoins(amount)
-        .endCell();
-
-    await client.sendExternalMessage(walletContract, msg);
+    await client.sendExternalMessage(wallet, msg);
 }

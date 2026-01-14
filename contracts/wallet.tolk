@@ -25,17 +25,19 @@ get fun getPublicKey(): uint256 {
     return storage.pubkey;
 }
 
-struct (0x3a752f01) Body {
+struct (0x3a752f01) Send {
     to: address
     amount: coins
 }
 
+type Body = Send
+
 struct ExternalMessage {
     signature: bits512
+    subwallet_id: uint32
     seqno: uint32
     valid_until: uint32
-    to: address
-    amount: coins
+    body: Cell<Body>
 }
 
 fun onInternalMessage(in: InMessage) {}
@@ -45,24 +47,28 @@ fun onExternalMessage(inMsg: slice) {
     val msg = ExternalMessage.fromSlice(inMsg);
     var signature = inMsg.getFirstBits(512) as slice;
     val payload = inMsg.skipBits(512);
+    val body = msg.body.load();
 
     assert(msg.valid_until >= blockchain.now()) throw 36;
     assert(msg.seqno == storage.seqno) throw 33;
-    // assert(msg.subwallet_id == storage.subwallet_id) throw 34;
+    assert(msg.subwallet_id == storage.subwallet_id) throw 34;
 
     val isValid = isSignatureValid(payload.hash(), signature, storage.pubkey);
     assert(isValid) throw 35;
 
     acceptExternalMessage();
 
-    storage.seqno += 1;
-    storage.save();
+    match (body) {
+        Send => {
+            val outMsg =createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: body.to,
+                value: body.amount
+            });
 
-    val outMsg =createMessage({
-        bounce: BounceMode.NoBounce,
-        dest: msg.to,
-        value: msg.amount
-    });
-
-    outMsg.send(SEND_MODE_REGULAR)
+            outMsg.send(SEND_MODE_REGULAR);
+            storage.seqno += 1;
+            storage.save();
+        }
+    }
 }

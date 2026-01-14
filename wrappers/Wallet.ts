@@ -27,19 +27,20 @@ export function walletConfigToCell(config: WalletConfig): Cell {
 export class WalletContract implements Contract {
     abi: ContractABI = { name: 'Wallet' };
 
-    static createFromAddress(address: Address) {
-        return new WalletContract(address);
+    static createFromAddress(address: Address, subwallet_id: number) {
+        return new WalletContract(address, subwallet_id);
     }
 
     constructor(
         readonly address: Address,
+        readonly subwallet_id?: number,
         readonly init?: { code: Cell; data: Cell },
     ) {}
 
     static createFromConfig(config: WalletConfig, code: Cell, workchain = 0): WalletContract {
         const data = walletConfigToCell(config);
         const init = { code, data };
-        return new WalletContract(contractAddress(workchain, init), init);
+        return new WalletContract(contractAddress(workchain, init), config.subwallet_id ?? 0, init);
     }
 
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
