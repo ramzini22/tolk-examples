@@ -1,6 +1,5 @@
-import { Address } from '@ton/core';
 import { NetworkProvider } from '@ton/blueprint';
-import { contractCustomAddress, WalletContract } from '../../wrappers/Wallet';
+import { contractCustomAddress, WalletContract } from '../../wrappers/wallet/Wallet';
 
 export async function run(provider: NetworkProvider) {
     const wallet = provider.open(new WalletContract(contractCustomAddress));

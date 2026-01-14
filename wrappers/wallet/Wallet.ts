@@ -10,7 +10,7 @@ import {
     SendMode,
 } from '@ton/core';
 
-const WALLET_ADDRESS = process.env.WALLET_ADDRESS ?? '';
+const WALLET_ADDRESS = process.env.WALLET_ADDRESS ?? '0QD5I9yyyHZ6K3MpzXdjiOQiYud0oaQt8Ehfgo4zerKRLKPR';
 export const contractCustomAddress = Address.parse(WALLET_ADDRESS);
 
 export type WalletConfig = {
