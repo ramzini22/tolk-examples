@@ -43,12 +43,13 @@ struct ExternalMessage {
 fun onInternalMessage(in: InMessage) {}
 
 fun onExternalMessage(inMsg: slice) {
-    var storage = lazy Storage.load();
     val msg = ExternalMessage.fromSlice(inMsg);
     var signature = inMsg.getFirstBits(512) as slice;
     val payload = inMsg.skipBits(512);
 
     assert(msg.valid_until >= blockchain.now()) throw 36;
+
+    var storage = lazy Storage.load();
     assert(msg.seqno == storage.seqno) throw 33;
     assert(msg.subwallet_id == storage.wallet_id) throw 34;
 
