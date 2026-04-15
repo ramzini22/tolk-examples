@@ -9,6 +9,7 @@ import {
     SendMode,
     toNano,
 } from '@ton/core';
+import { Op } from './jetton-constants';
 
 export type JettonWalletConfig = {};
 
@@ -57,7 +58,7 @@ export class JettonWallet implements Contract {
         forwardPayload: Cell | null,
     ) {
         return beginCell()
-            .storeUint(0xf8a7ea5, 32)
+            .storeUint(Op.transfer, 32)
             .storeUint(0, 64) // op, queryId
             .storeCoins(jetton_amount)
             .storeAddress(to)
