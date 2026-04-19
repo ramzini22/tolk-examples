@@ -1,1 +1,1 @@
-export const storageCommission = 0.5;
+export const storageCommission = 5;

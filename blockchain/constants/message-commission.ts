@@ -1,1 +1,1 @@
-export const messageCommission: number = 0.1;
+export const messageCommission: number = 1;

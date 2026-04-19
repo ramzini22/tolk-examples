@@ -2,7 +2,9 @@ import { ContractStatusEnum } from '../types/contract-status.enum';
 import { BlockchainTransactionInMsgInterface } from './blockchain-transaction-in-msg.interface';
 import { BlockchainTransactionOutMsgInterface } from './blockchain-transaction-out-msg.interface';
 
-export interface BlockchainTransactionInterface {
+export interface BlockchainTransactionInterface<
+    T = BlockchainTransactionInMsgInterface | BlockchainTransactionOutMsgInterface,
+> {
     address: string;
     lt: number;
     now: number;
@@ -10,6 +12,6 @@ export interface BlockchainTransactionInterface {
     oldStatus: ContractStatusEnum;
     endStatus: ContractStatusEnum;
     totalFees: number;
-    inMsg: BlockchainTransactionInMsgInterface | BlockchainTransactionOutMsgInterface;
+    inMsg: T;
     outMsg: BlockchainTransactionOutMsgInterface[];
 }

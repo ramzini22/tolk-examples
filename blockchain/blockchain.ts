@@ -13,6 +13,7 @@ import { BlockchainTransactionInMsgEnum } from './types/blockchain-transaction-i
 import { BaseContract } from './contracts/base-contract';
 import * as fs from 'node:fs';
 import path from 'node:path';
+import { BlockchainTransactionOutMsgInterface } from './interfaces/blockchain-transaction-out-msg.interface';
 
 class Blockchain implements BlockchainInterface {
     transactions: BlockchainTransactionInterface[];
@@ -27,7 +28,7 @@ class Blockchain implements BlockchainInterface {
 
     public sendOutMsg(args: BlockchainOutMsgInterface): TransactionStatus {
         const newBlock = new Blockchain();
-        const { address, stateInit } = args;
+        const { address, stateInit, body } = args;
         let smartContract = this.contracts.get(address);
         if (!smartContract) return TransactionStatus.FAILED;
         const contract = structuredClone(smartContract);
@@ -40,13 +41,14 @@ class Blockchain implements BlockchainInterface {
             oldStatus: contract.status,
             endStatus: contract.status,
             inMsg: {
-                type: BlockchainTransactionInMsgEnum.EXTERNAL,
                 address: contract.address,
+                type: BlockchainTransactionInMsgEnum.EXTERNAL,
                 status: TransactionStatus.FAILED,
-                body: args.body,
+                stateInit,
+                body,
             },
             outMsg: [],
-            totalFees: messageCommission,
+            totalFees: 0,
         };
 
         if (contract.status === ContractStatusEnum.UNINITIALIZED && stateInit) {
@@ -54,17 +56,20 @@ class Blockchain implements BlockchainInterface {
             if (address !== contract.address) return TransactionStatus.FAILED;
             transaction.inMsg.stateInit = stateInit;
             transaction.totalFees += storageCommission;
+            contract.balance -= storageCommission;
             contract.code = stateInit.code;
             contract.storage = stateInit.data;
-            contract.status = ContractStatusEnum.ACTIVE;
-            transaction.endStatus = ContractStatusEnum.ACTIVE;
         }
 
         (global as any).BaseContract = BaseContract;
 
         const workContract = this.getWorkContract(contract);
+        if (!workContract) return TransactionStatus.FAILED;
 
         if (workContract.outMsg) {
+            transaction.totalFees += messageCommission;
+            workContract.balance -= messageCommission;
+
             const sendInnMsg = (args: BlockchainInnMsgInterface) => {
                 let status = TransactionStatus.FAILED;
                 const innMsgTotalFees = args.amount;
@@ -86,16 +91,17 @@ class Blockchain implements BlockchainInterface {
                         oldStatus: workContract.status,
                         endStatus: workContract.status,
                         inMsg: {
-                            type: BlockchainTransactionInMsgEnum.INTERNAL,
                             address: workContract.address,
-                            status: TransactionStatus.SUCCESS,
                             bounce: args.bounce,
                             bounced: false,
-                            body: args.body,
+                            type: BlockchainTransactionInMsgEnum.INTERNAL,
+                            status: TransactionStatus.SUCCESS,
                             amount: args.amount,
+                            stateInit: args.stateInit,
+                            body: args.body,
                         },
                         outMsg: [],
-                        totalFees: messageCommission,
+                        totalFees: 0,
                     });
                 }
 
@@ -104,10 +110,11 @@ class Blockchain implements BlockchainInterface {
                     address: args.address,
                     bounce: args.bounce,
                     bounced: false,
-                    body: args.body,
                     type: BlockchainTransactionInMsgEnum.INTERNAL,
                     status,
                     amount: args.amount,
+                    stateInit: args.stateInit,
+                    body: args.body,
                 });
 
                 return TransactionStatus.SUCCESS;
@@ -122,12 +129,7 @@ class Blockchain implements BlockchainInterface {
             if (success !== TransactionStatus.SUCCESS || !accepted) return TransactionStatus.FAILED;
         }
 
-        workContract.balance -= transaction.totalFees;
         if (workContract.balance < 0) return TransactionStatus.FAILED;
-        if (workContract.balance === 0) {
-            workContract.status = ContractStatusEnum.FROZEN;
-            transaction.endStatus = ContractStatusEnum.FROZEN;
-        }
 
         transaction.inMsg.status = TransactionStatus.SUCCESS;
         newBlock.transactions.push(transaction);
@@ -137,92 +139,121 @@ class Blockchain implements BlockchainInterface {
         return TransactionStatus.SUCCESS;
     }
 
-    public sendInnerMsg(inMsg: BlockchainTransactionInterface) {
+    public sendInnerMsg(inMsg: BlockchainTransactionInterface<BlockchainTransactionOutMsgInterface>) {
         const transaction = structuredClone(inMsg);
         const newBlock = new Blockchain();
-        if (transaction?.inMsg?.type !== BlockchainTransactionInMsgEnum.INTERNAL) return TransactionStatus.FAILED;
 
         transaction.lt = Date.now();
         transaction.now = Date.now();
 
-        const contract = this.contracts.get(transaction.address);
+        let contract = this.contracts.get(transaction.address);
+        if (
+            !contract?.code?.length &&
+            inMsg.inMsg.stateInit &&
+            inMsg.inMsg.amount >= storageCommission + messageCommission
+        ) {
+            if (contract) {
+                contract.code = inMsg.inMsg.stateInit.code;
+                contract.storage = inMsg.inMsg.stateInit.data;
+            } else {
+                contract = new BaseContract({ code: inMsg.inMsg.stateInit.code, data: inMsg.inMsg.stateInit.data });
+            }
+
+            contract.balance += transaction.inMsg.amount;
+            transaction.totalFees += storageCommission;
+            contract.balance -= storageCommission;
+            newBlock.setContract(contract);
+        } else if (contract) {
+            contract.balance += transaction.inMsg.amount;
+        }
+
         if (!contract) {
+            if (transaction.inMsg.amount < messageCommission) return TransactionStatus.FAILED;
             if (transaction.inMsg.bounce === false) {
                 const uninitializedContract = BlockchainUtils.createUninitializedContract(
                     transaction.address,
                     transaction.inMsg.amount,
                 );
+                transaction.totalFees += messageCommission;
+                uninitializedContract.balance -= messageCommission;
                 newBlock.setContract(uninitializedContract);
                 newBlock.transactions.push(transaction);
             } else {
-                if (transaction.inMsg.amount >= messageCommission) {
-                    transaction.address = inMsg.inMsg.address;
-                    transaction.inMsg.address = inMsg.address;
-                    transaction.inMsg.amount -= messageCommission;
-                    transaction.inMsg.bounced = true;
-                    transaction.inMsg.status = TransactionStatus.SUCCESS;
-                    newBlock.innerMessagesList.push(transaction);
-                }
+                transaction.address = inMsg.inMsg.address;
+                transaction.inMsg.address = inMsg.address;
+                transaction.inMsg.amount -= messageCommission;
+                transaction.inMsg.bounced = true;
+                transaction.inMsg.status = TransactionStatus.SUCCESS;
+                newBlock.innerMessagesList.push(transaction);
             }
-        } else {
+        } else if (contract.balance >= messageCommission) {
             const workContract = contract?.code?.length ? this.getWorkContract(contract) : contract;
+            if (!workContract) return TransactionStatus.FAILED;
+
+            transaction.totalFees += messageCommission;
+            workContract.balance -= messageCommission;
+
             const sendInnMsg = (args: BlockchainInnMsgInterface) => {
-                if (
-                    transaction.inMsg.type === BlockchainTransactionInMsgEnum.INTERNAL &&
-                    transaction.inMsg.bounced === true
-                ) {
-                    if (workContract.onBounce) workContract.onBounce(transaction.inMsg.body);
-                    return TransactionStatus.FAILED;
-                }
-
-                newBlock.innerMessagesList.push({
-                    address: args.address,
-                    lt: Date.now(),
-                    now: Date.now(),
-                    outMessagesCount: 0,
-                    oldStatus: workContract.status,
-                    endStatus: workContract.status,
-                    inMsg: {
-                        type: BlockchainTransactionInMsgEnum.INTERNAL,
-                        address: workContract.address,
-                        status: TransactionStatus.FAILED,
-                        bounce: args.bounce,
-                        bounced: false,
-                        body: args.body,
-                        amount: args.amount,
-                    },
-                    outMsg: [],
-                    totalFees: messageCommission,
-                });
-
                 let status = TransactionStatus.FAILED;
                 const innMsgTotalFees = args.amount;
 
-                if (workContract.balance >= innMsgTotalFees) {
-                    workContract.balance -= innMsgTotalFees;
+                if (workContract.balance >= innMsgTotalFees + messageCommission) {
                     transaction.totalFees += messageCommission;
+                    workContract.balance -= innMsgTotalFees;
+                    workContract.balance -= messageCommission;
+
                     status = TransactionStatus.SUCCESS;
+
+                    newBlock.innerMessagesList.push({
+                        address: args.address,
+                        lt: Date.now(),
+                        now: Date.now(),
+                        outMessagesCount: 0,
+                        oldStatus: workContract.status,
+                        endStatus: workContract.status,
+                        inMsg: {
+                            address: workContract.address,
+                            bounce: args.bounce,
+                            bounced: false,
+                            type: BlockchainTransactionInMsgEnum.INTERNAL,
+                            status: TransactionStatus.SUCCESS,
+                            amount: args.amount,
+                            stateInit: args.stateInit,
+                            body: args.body,
+                        },
+                        outMsg: [],
+                        totalFees: 0,
+                    });
                 }
 
                 transaction.outMessagesCount++;
                 transaction.outMsg.push({
-                    type: BlockchainTransactionInMsgEnum.INTERNAL,
                     address: args.address,
                     bounce: args.bounce,
-                    body: args.body,
                     bounced: false,
+                    type: BlockchainTransactionInMsgEnum.INTERNAL,
                     status,
                     amount: args.amount,
+                    stateInit: args.stateInit,
+                    body: args.body,
                 });
 
                 return TransactionStatus.SUCCESS;
             };
 
             if (workContract.innMsg) {
-                transaction.inMsg.status = workContract.innMsg(transaction.inMsg.body, { sendInnMsg });
+                transaction.inMsg.status = workContract.innMsg(
+                    {
+                        address: transaction.inMsg.address,
+                        bounce: transaction.inMsg.bounce,
+                        amount: transaction.inMsg.amount,
+                        stateInit: transaction.inMsg.stateInit,
+                        body: transaction.inMsg.body,
+                    },
+                    { sendInnMsg },
+                );
             } else transaction.inMsg.status = TransactionStatus.SUCCESS;
 
-            workContract.balance += transaction.inMsg.amount;
             newBlock.setContract(workContract);
             newBlock.transactions.push(transaction);
         }
@@ -230,14 +261,19 @@ class Blockchain implements BlockchainInterface {
         this.save(newBlock);
     }
 
-    public setContract(contract: any) {
-        const oldContract = this.contracts.get(contract.address);
-        if (!oldContract) return this.contracts.set(contract.address, contract);
+    public setContract(contract: ContractInterface) {
+        let oldContract = this.contracts.get(contract.address);
+        if (!oldContract) oldContract = contract;
+        else {
+            oldContract.storage = contract.storage;
+            oldContract.balance = contract.balance;
+            if (!oldContract.code?.length) oldContract.code = contract.code;
+        }
 
-        oldContract.balance = contract.balance;
-        oldContract.storage = contract.storage;
-        oldContract.status = contract.status;
-        oldContract.code = contract.code;
+        if (oldContract.code) {
+            if (contract.balance > 0) oldContract.status = ContractStatusEnum.ACTIVE;
+            else oldContract.status = ContractStatusEnum.FROZEN;
+        } else oldContract.status = ContractStatusEnum.UNINITIALIZED;
 
         this.contracts.set(oldContract.address, oldContract);
     }
@@ -254,65 +290,91 @@ class Blockchain implements BlockchainInterface {
         );
     }
 
-    public updateStorage() {
-        let time = 1000;
+    public async updateStorage() {
+        return new Promise<void>((resolve) => {
+            let time = 10;
 
-        const inMsg = this.innerMessagesList?.length ? this.innerMessagesList[0] : null;
-        if (inMsg) {
-            time = 1000;
-            this.innerMessagesList.shift();
-            this.sendInnerMsg(inMsg);
-        }
-
-        fs.writeFileSync(path.join(__dirname, './storage.json'), this.toString(), 'utf8');
-        setTimeout(() => this.updateStorage(), time);
+            const inMsg = this.innerMessagesList?.length ? this.innerMessagesList[0] : null;
+            if (inMsg) {
+                time = 1;
+                this.innerMessagesList.shift();
+                this.sendInnerMsg(inMsg);
+            }
+            fs.writeFileSync(path.join(__dirname, './storage.json'), this.toString(), 'utf8');
+            setTimeout(() => this.updateStorage(), time);
+            return resolve();
+        });
     }
 
     private save(newBlock: BlockchainInterface) {
         const contracts = Array.from(newBlock.contracts.values());
-        contracts.forEach((contract) => blockchain.setContract(contract));
+        contracts.forEach((contract) => {
+            blockchain.setContract(contract);
+            newBlock.transactions = newBlock.transactions.map((transaction) => {
+                if (transaction.address === contract.address) transaction.endStatus = contract.status;
+                return transaction;
+            });
+        });
         newBlock.transactions.forEach((transaction) => blockchain.transactions.push(transaction));
         newBlock.innerMessagesList.forEach((innerMessage) => blockchain.innerMessagesList.push(innerMessage));
     }
 
     private getWorkContract(contract: ContractInterface) {
-        (global as any).BaseContract = BaseContract;
-        const ContractClass = eval(`(${contract.code.replace('base_contract_1.', '')})`);
-        const workContract = new ContractClass({ code: contract.code, data: {} });
-        workContract.address = contract.address;
-        workContract.balance = contract.balance;
-        workContract.storage = contract.storage;
-        workContract.status = contract.status;
-
-        return workContract as ContractInterface;
+        try {
+            if (!contract.code) {
+                console.error('Contract.code is empty');
+                return null;
+            }
+            (global as any).BaseContract = BaseContract;
+            const ContractClass = eval(`(${contract.code.replace('base_contract_1.', '')})`);
+            const workContract = new ContractClass({ code: contract.code, data: {} });
+            workContract.address = contract.address;
+            workContract.balance = contract.balance;
+            workContract.storage = contract.storage;
+            workContract.status = contract.status;
+            return workContract as ContractInterface;
+        } catch (error) {
+            console.error(error);
+            return null;
+        }
     }
 
-    public loadFromStorage() {
-        const filePath = path.resolve(path.join(__dirname, './storage.json'));
+    public async loadFromStorage() {
+        return new Promise<void>((resolve) => {
+            const filePath = path.resolve(path.join(__dirname, './storage.json'));
 
-        if (!fs.existsSync(filePath)) return;
-
-        try {
-            const rawData = fs.readFileSync(filePath, 'utf8');
-            if (!rawData.trim()?.length) return;
-            const savedData = JSON.parse(rawData);
-
-            this.transactions = savedData.transactions || [];
-
-            if (savedData.contracts) {
-                const contractsObject = savedData.contracts;
-
-                for (const [address, data] of Object.entries(contractsObject)) {
-                    const contract = data as any;
-                    this.contracts.set(address, contract);
-                }
+            if (!fs.existsSync(filePath)) {
+                blockchain.updateStorage();
+                return resolve();
             }
-        } catch (err) {
-            console.error('Ошибка при загрузке storage.json:', err);
-        }
+
+            try {
+                const rawData = fs.readFileSync(filePath, 'utf8');
+                if (!rawData.trim()?.length) {
+                    blockchain.updateStorage();
+                    return resolve();
+                }
+
+                const savedData = JSON.parse(rawData);
+
+                this.transactions = savedData.transactions || [];
+
+                if (savedData.contracts) {
+                    const contractsObject = savedData.contracts;
+
+                    for (const [address, data] of Object.entries(contractsObject)) {
+                        const contract = data as any;
+                        this.contracts.set(address, contract);
+                    }
+                }
+            } catch (err) {
+                console.error('Ошибка при загрузке storage.json:', err);
+            }
+
+            blockchain.updateStorage();
+            return resolve();
+        });
     }
 }
 
 export const blockchain: BlockchainInterface = new Blockchain();
-blockchain.loadFromStorage();
-blockchain.updateStorage();

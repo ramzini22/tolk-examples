@@ -12,6 +12,6 @@ export interface BlockchainInterface {
 
     sendOutMsg: (payload: BlockchainOutMsgInterface) => TransactionStatus;
     setContract: (contract: BaseContract) => void;
-    updateStorage: () => void;
-    loadFromStorage: () => void;
+    updateStorage: () => Promise<void>;
+    loadFromStorage: () => Promise<void>;
 }
